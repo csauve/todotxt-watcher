@@ -1,0 +1,5 @@
+todoFile: "todo.txt"
+port: 9001
+static:
+  extensions: ["html"]
+  maxAge: 1000 * 60 * 60
