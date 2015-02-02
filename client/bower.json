@@ -16,6 +16,7 @@
   ],
   "dependencies": {
     "polymer": "~0.5.4",
+    "pleasejs": "~0.4.2",
     "socket-connection": "~0.1.2"
   }
 }

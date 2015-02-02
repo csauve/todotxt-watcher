@@ -1,0 +1,160 @@
+<style type="text/css" media="screen, print">
+  * {
+    padding: 0;
+    margin: 0;
+  }
+
+  body {
+    background: #1d1f21;
+  }
+</style>
+
+<link rel="import" href="../bower_components/polymer/polymer.html">
+
+<polymer-element name="todo-task" attributes="task">
+  <template>
+    <style>
+      .task {
+        position: absolute;
+        height: 18px;
+        width: {{task.width * 100}}%;
+        top: {{task.y}}px;
+        left: {{task.x * 100}}%;
+        border-radius: 3px;
+        border: 1px solid black;
+        background: {{getColour()}};
+        -webkit-transition: all 500ms;
+        transition: all 500ms;
+      }
+
+      .task.complete {
+        background: #333;
+        color: #aaa;
+      }
+
+      .task p {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        font-size: 10pt;
+        font-weight: 700;
+        margin: 0;
+        padding-left: 6px;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        overflow: hidden;
+      }
+    </style>
+
+    <div class="{{ {task: true, complete: task.complete} | tokenList}}">
+      <p>{{task.text}}</p>
+    </div>
+
+  </template>
+  <script src="../bower_components/pleasejs/dist/Please.js"></script>
+  <script>
+    Polymer("todo-task", {
+      task: {},
+      taskChanged: function() {
+      },
+      getColour: function() {
+        var sum = 0;
+        var text = this.task.projects[0];
+        if (!text) {
+          return "#aaa";
+        }
+        for (var i = 0; i < text.length; i++) {
+          sum += text.charCodeAt(i) * 31;
+        }
+        return Please.make_color({
+          hue: sum % 360,
+          saturation: 0.35,
+          value: 0.9,
+          golden: false,
+          format: 'hex'
+        });
+      }
+    });
+  </script>
+<polymer-element>
+
+<polymer-element name="task-timeline" attributes="source">
+  <template>
+    <socket-connection url="{{source}}">
+      <socket-receiver event="update" data="{{sourceTasks}}"></socket-receiver>
+    </socket-connection>
+
+    <template repeat="day in days"></template>
+
+    <template repeat="{{task in displayPool}}">
+      <todo-task task="{{task}}"></todo-task>
+    </template>
+  </template>
+  <script>
+    Polymer({
+      sourceTasks: [],
+      displayPool: [],
+      sourceTasksChanged: function(oldTasks, newTasks) {
+        var num = 0;
+        var self = this;
+
+        var calculatePosition = function(num) {
+          var task = self.displayPool[num];
+
+          var now = new Date().getTime();
+          var timelineStart = now - 1000 * 60 * 60 * 24 * 30;
+          var timelineEnd = now + 1000 * 60 * 60 * 24 * 30;
+          var taskStart = Math.max(timelineStart, new Date(task.metadata.t).getTime());
+          var taskEnd = Math.min(timelineEnd, new Date(task.metadata.due).getTime());
+
+          var timelineSpan = timelineEnd - timelineStart;
+          var taskSpan = taskEnd - taskStart;
+
+          task.width = taskSpan / timelineSpan;
+          task.x = (taskStart - timelineStart) / timelineSpan;
+
+          //count number of previous tasks that are above it
+          var level = 0;
+          for (var i = 0; i < num; i++) {
+            var prev = self.displayPool[i];
+            (prev.x + prev.width) >= task.x || (task.x + task.width) >= prev.x
+            var pStart = prev.x, pEnd = pStart + prev.width;
+            var tStart = task.x, tEnd = tStart + task.width;
+            if ((tStart < pEnd && tEnd > pStart) || (tEnd > pStart && tStart < pEnd)) {
+              level++;
+            }
+          }
+          task.y = level * 20;
+        };
+
+        var addTasks = function(taskList) {
+          for (var i = 0; i < taskList.length; i++) {
+            var task = taskList[i];
+            if (!task.metadata.t || !task.metadata.due) {
+              continue;
+            }
+
+            if (!self.displayPool[num]) {
+              self.displayPool.push({});
+            }
+
+            for (property in task) {
+              if (task.hasOwnProperty(property) && property != "subtasks") {
+                self.displayPool[num][property] = task[property];
+              }
+            }
+
+            calculatePosition(num);
+            num++;
+            addTasks(taskList[i].subtasks);
+          }
+        };
+
+        addTasks(newTasks);
+
+        var difference = self.displayPool.length - num;
+        if (difference > 0) {
+          self.displayPool.splice(-difference, difference);
+        }
+      }
+    });
+  </script>
+</polymer-element>
